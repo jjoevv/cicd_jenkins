@@ -1,0 +1,40 @@
+# Ignore node_modules
+node_modules
+**/node_modules
+
+# Ignore Git
+.git
+.gitignore
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
+# Editor configs
+.vscode
+.idea
+
+# Test
+coverage
+*.test.js
+*.spec.js
+
+# Build output
+.next
+out
+dist
+build
+
+# Env files (use Docker secrets instead)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Docker ignore itself
+.dockerignore
+# Docker Compose files
+docker-compose.override.yml

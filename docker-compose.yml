@@ -1,0 +1,109 @@
+#version: '3.8'
+services:
+  #Jenkins service for CI/CD
+  jenkins:
+    image: jenkins/jenkins:lts
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock  # build & deploy Docker
+    networks:
+      - cicd
+
+  # Prometheus and Grafana for monitoring
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+    networks:
+      - cicd
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin  # Set admin username
+      - GF_SECURITY_ADMIN_PASSWORD=admin  # Set admin password
+      - GF_AUTH_ANONYMOUS_ENABLED=true  # Enable anonymous access
+    networks:
+      - cicd
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    networks:
+      - cicd
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+  cadvisor:
+      image: gcr.io/cadvisor/cadvisor:latest
+      container_name: cadvisor
+      #ports:
+       # - "8081:8080"
+      volumes:
+        - /:/rootfs:ro
+        - /var/run:/var/run:ro
+        - /sys:/sys:ro
+        - /var/lib/docker/:/var/lib/docker:ro
+      restart: unless-stopped
+  # MongoDB, Backend, and Frontend services
+  mongodb:
+    image: mongo:7
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    image: ${DOCKERHUB_USERNAME}/demo-nextappbe:latest
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+    ports:
+      - "4000:4000"
+    depends_on:
+      - mongodb
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME}/demo-nextappfe:latest
+    restart: always
+    ports:
+      - "80:3000"
+    depends_on:
+      - backend
+
+volumes:
+  jenkins_home:
+  mongo_data: 
+  prometheus_data:
+  grafana_data:
+
+networks:
+  cicd:
