@@ -33,6 +33,11 @@ pipeline {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
                     echo "Installing dependencies for branch: ${branchName}"
+                    if (branchName.startsWith("fe/") ) {
+                        echo "Installing frontend dependencies... ${branchName}"
+                    } else {
+                        echo "Installing backend dependencies..."
+                    }
                     if (branchName.startsWith("fe/") || branchName == "main") {
                         dir('frontend') {
                             echo 'Installing frontend dependencies...'
@@ -53,7 +58,7 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
-                    def imageName = branchName.startsWith("fe/") ? IMAGE_FE : IMAGE_BE
+                    def imageName = branchName = "fe" ? IMAGE_FE : IMAGE_BE
                     def service = branchName.startsWith("fe/") ? 'frontend' : 'backend'
 
                     if (params.SKIP_BUILD_IMAGE) {
