@@ -9,7 +9,8 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')      // Jenkins Credentials: username & password
         DOCKERHUB_USERNAME = "${DOCKERHUB_CREDENTIALS_USR}"         // Username for Docker Hub
         DOCKERHUB_PASSWORD = "${DOCKERHUB_CREDENTIALS_PSW}"         // Password for Docker Hub
-        TAG = "build-${env.BUILD_NUMBER}"                                 // Tag for images using Jenkins build number
+        TAG = "build-${env.BUILD_NUMBER}"                           // Tag for images using Jenkins build number
+        BRANCH_NAME_ENV = "${env.BRANCH_NAME}"                      // Branch name from the environment  
 
         USER_SERVER = 'dev'                                         // SSH user on lab server
         SERVER_IP = credentials('LAB_SERVER_IP')                    // Lab server IP from Secret Text Credential
@@ -46,22 +47,8 @@ pipeline {
         // Stage to install dependencies for linting and testing
         // This stage will run npm install in both frontend and backend directories
         stage('Install Dependencies') {
-            when {
-                anyOf {
-                    branch 'main'
-                    expression { env.BRANCH_NAME.startsWith('fe/') }
-                    expression { env.BRANCH_NAME.startsWith('be/') }
-                }
-            }
             steps {
-                script {
-                    if (env.BRANCH_NAME.startsWith("fe/") || env.BRANCH_NAME == "main") {
-                        install('frontend')
-                    }
-                    if (env.BRANCH_NAME.startsWith("be/") || env.BRANCH_NAME == "main") {
-                        install('backend')
-                    }
-                }
+                install() // Call the install function from vars/install.groovy
             }
         }
         // Stage to build Docker images
@@ -79,10 +66,10 @@ pipeline {
             steps {
                 script {
                     if (env.BRANCH_NAME.startsWith("fe/") || env.BRANCH_NAME == "main") {
-                        buildDockerImage('frontend')
+                        buildDockerImage('frontend', "${env.TAG}")
                     }
                     if (env.BRANCH_NAME.startsWith("be/") || env.BRANCH_NAME == "main") {
-                        buildDockerImage('backend')
+                        buildDockerImage('backend', "${env.TAG}")
                     }
                 }
             }
@@ -104,10 +91,10 @@ pipeline {
             steps {
                 script {
                     if (env.BRANCH_NAME.startsWith("fe/") || env.BRANCH_NAME == "main") {
-                        pushDockerImage('frontend')
+                        pushDockerImage('frontend', "${env.TAG}", DOCKERHUB_USERNAME, DOCKERHUB_PASSWORD)
                     }
                     if (env.BRANCH_NAME.startsWith("be/") || env.BRANCH_NAME == "main") {
-                        pushDockerImage('backend')
+                        pushDockerImage('backend', "${env.TAG}", DOCKERHUB_USERNAME, DOCKERHUB_PASSWORD)
                     }
                 }
             }
