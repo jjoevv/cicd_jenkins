@@ -1,4 +1,4 @@
-@Library('cicd_lib')
+@Library('cicd_lib') // Import the GitHub Notify library for notifications
 // This Jenkinsfile defines a CI/CD pipeline for a Next.js application with a frontend and backend.
 // It includes stages for checking out code, building and pushing Docker images, and deploying or rolling
 
@@ -47,33 +47,48 @@ pipeline {
         // Stage to install dependencies for linting and testing
         // This stage will run npm install in both frontend and backend directories
         stage('Install Dependencies') {
-            steps {
-                install() // Call the install function from vars/install.groovy
+            script {
+                if (BRANCH_NAME_ENV.startsWith("fe/") || BRANCH_NAME_ENV == "main") {
+                    dir('frontend') {
+                        echo 'Installing frontend dependencies...'
+                        sh 'npm install'
+                    }
+                }
+                if (BRANCH_NAME_ENV.startsWith("be/") || BRANCH_NAME_ENV == "main") {
+                    dir('backend') {
+                        echo 'Installing backend dependencies...'
+                        sh 'npm install'
+                    }
+                }
             }
         }
+
         // Stage to build Docker images
         // This stage will build Docker images for both frontend and backend
         // It will only run if the SKIP_BUILD_IMAGE parameter is false
     
-        stage('Build Docker Images') {
-            when {
-                anyOf {
-                    branch 'main'
-                    expression { env.BRANCH_NAME.startsWith('fe/') }
-                    expression { env.BRANCH_NAME.startsWith('be/') }
-                }
-            }
+        stage("Build Docker Image") {
             steps {
                 script {
-                    if (env.BRANCH_NAME.startsWith("fe/") || env.BRANCH_NAME == "main") {
-                        buildDockerImage('frontend', "${env.TAG}")
-                    }
-                    if (env.BRANCH_NAME.startsWith("be/") || env.BRANCH_NAME == "main") {
-                        buildDockerImage('backend', "${env.TAG}")
+                    def branchName = env.BRANCH_NAME ?: "unknown"
+                    def imageName = branchName.startsWith("fe/") ? IMAGE_FE : IMAGE_BE
+                    def service = branchName.startsWith("fe/") ? 'frontend' : 'backend'
+
+                    if (params.SKIP_BUILD_IMAGE) {
+                        echo "Skipping Docker build for ${service} because SKIP_BUILD_IMAGE is true."
+                    } else {
+                        dir(service) {
+                            sh 'docker info || { echo "Docker is not running. Exiting."; exit 1; }'
+                            echo "Building Docker image for ${service}..."
+                            sh """
+                                docker build -t ${imageName}:latest -t ${imageName}:${TAG} .
+                            """
+                        }
                     }
                 }
             }
         }
+
 
         // Stage to push Docker images to Docker Hub
         // This stage will run only if the branch is main or starts with 'fe/' or 'be/'
@@ -81,41 +96,54 @@ pipeline {
         // The images will be tagged with 'latest' and the build number
         // If SKIP_PUSH_IMAGE is true, this stage will be skipped
         stage('Push Docker Images') {
-            when {
-                anyOf {
-                    branch 'main'
-                    expression { env.BRANCH_NAME.startsWith('fe/') }
-                    expression { env.BRANCH_NAME.startsWith('be/') }
-                }
-            }
             steps {
                 script {
-                    if (env.BRANCH_NAME.startsWith("fe/") || env.BRANCH_NAME == "main") {
-                        pushDockerImage('frontend', "${env.TAG}", DOCKERHUB_USERNAME, DOCKERHUB_PASSWORD)
-                    }
-                    if (env.BRANCH_NAME.startsWith("be/") || env.BRANCH_NAME == "main") {
-                        pushDockerImage('backend', "${env.TAG}", DOCKERHUB_USERNAME, DOCKERHUB_PASSWORD)
+                    def branchName = env.BRANCH_NAME ?: "unknown"
+                    def imageName = branchName.startsWith("fe/") ? IMAGE_FE : IMAGE_BE
+                    def service = branchName.startsWith("fe/") ? 'frontend' : 'backend'
+
+                    if (params.SKIP_PUSH_IMAGE) {
+                        echo "Skipping Docker push for ${service} because SKIP_PUSH_IMAGE is true."
+                    } else {
+                        echo "Logging in to Docker Hub..."
+
+                        sh """
+                            echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+                            echo "🚀 Pushing Docker images to Docker Hub..."
+
+                            docker push ${imageName}:latest
+                            docker push ${imageName}:${TAG}
+
+                            docker logout
+                        """
                     }
                 }
             }
         }
+
 
         // Stage to run tests
         stage('Test') {
             when {
                 anyOf {
                     branch 'main'
-                    expression { env.BRANCH_NAME.startsWith('fe/') }
-                    expression { env.BRANCH_NAME.startsWith('be/') }
+                    expression { BRANCH_NAME_ENV.startsWith('fe/') }
+                    expression { BRANCH_NAME_ENV.startsWith('be/') }
                 }
             }
             steps {
                 script {
-                    if (env.BRANCH_NAME.startsWith("fe/") || env.BRANCH_NAME == "main") {
-                        test('frontend')
+                    if (BRANCH_NAME_ENV.startsWith("fe/") || BRANCH_NAME_ENV == "main") {
+                        dir('frontend') {
+                            echo '🧪 Running unit tests...'
+                            sh 'npm test'
+                        }
                     }
-                    if (env.BRANCH_NAME.startsWith("be/") || env.BRANCH_NAME == "main") {
-                        test('backend')
+                    if (BRANCH_NAME_ENV.startsWith("be/") || BRANCH_NAME_ENV == "main") {
+                        dir('backend') {
+                            echo '🧪 Running unit tests...'
+                            sh 'npm test'
+                        }
                     }
                 }
             }
@@ -125,7 +153,11 @@ pipeline {
         stage('Cleanup After Build') {
             steps {
                 script {
-                    cleanDocker()
+                    echo "🧹 Cleaning up dangling Docker images again after build..."
+                    sh 'docker system prune -af'
+                    sh 'docker image prune -f'  
+                    sh 'docker volume prune -f'
+                    sh 'docker container prune -f'
                 }
             }
         }
@@ -140,20 +172,90 @@ pipeline {
         // The server IP is stored in a Secret Text Credential
         // The deployment is done using docker compose to manage the containers
        stage('Deploy or Rollback') {
-            when {
-                anyOf {
-                    branch 'main'
-                    expression { env.BRANCH_NAME.startsWith('fe/') }
-                    expression { env.BRANCH_NAME.startsWith('be/') }
-                }
-            }
             steps {
-                script {
-                    if (env.BRANCH_NAME.startsWith("fe/") || env.BRANCH_NAME == "main") {
-                        deployVM('frontend')
-                    }
-                    if (env.BRANCH_NAME.startsWith("be/") || env.BRANCH_NAME == "main") {
-                        deployVM('backend')
+                sshagent(['vps-ssh']) { 
+                    script {
+                        
+                        // Ensure the docker-compose.yml file is present in the workspace
+                        if (!fileExists('docker-compose.yml') || !fileExists('prometheus.yml')) {
+                            error('❌ docker-compose.yml or prometheus file not found in the workspace. Please ensure it exists.')
+                        } else  {
+                            script {
+                                def copySuccess = false
+
+                                // Try IP LAN
+                                try {
+                                    echo "Trying to copy via IP LAN"
+                                    sh """
+                                    
+                                        mkdir -p /home/dev/nextapp 
+
+                                        scp -o ConnectTimeout=20 -o StrictHostKeyChecking=no docker-compose.yml ${USER_SERVER}@${SERVER_IP}:${TARGET_PATH}docker-compose.yml
+                                        scp -o ConnectTimeout=20 -o StrictHostKeyChecking=no prometheus.yml ${USER_SERVER}@${SERVER_IP}:${TARGET_PATH}prometheus.yml
+                                        
+                                    """
+
+                                    echo "✅ Copied via IP LAN successfully."
+                                    copySuccess = true
+                                } catch (err) {
+                                    echo "⚠️ Failed to copy via IP LAN (${SERVER_IP})... ${err.getMessage()}"
+                                }
+
+
+                                // If all fail, fail the pipeline
+                                if (!copySuccess) {
+                                    error("Connect failed. Please check the server IP and SSH credentials.")
+                                }
+                            }
+                        }
+                       
+                        def deployCommand = """
+                            ssh -o StrictHostKeyChecking=no ${USER_SERVER}@${SERVER_IP} '
+                                set -e
+                                echo "🚀 Starting deployment..."
+
+                                mkdir -p /home/dev/nextapp &&
+                                cd /home/dev/nextapp &&
+
+                                docker compose pull
+                                docker compose up -d
+
+                                echo "✅ Deployment complete."
+                            '
+                        """
+
+                        def rollbackCommand = """
+                            ssh -o StrictHostKeyChecking=no ${USER_SERVER}@${SERVER_IP} '
+                                set -e
+                                echo "🔄 Rolling back to tag ${params.ROLLBACK_TAG}..."
+
+                                docker pull ${IMAGE_FE}:${params.ROLLBACK_TAG}
+                                docker pull ${IMAGE_BE}:${params.ROLLBACK_TAG}
+
+                                docker tag ${IMAGE_FE}:${params.ROLLBACK_TAG} ${IMAGE_FE}:latest
+                                docker tag ${IMAGE_BE}:${params.ROLLBACK_TAG} ${IMAGE_BE}:latest
+
+                                mkdir -p /home/dev/nextapp &&
+                                cd /home/dev/nextapp &&
+
+                                docker compose down
+
+                                docker compose up -d
+
+                                echo "✅ Rollback complete."
+                            '
+                        """
+
+                        if (params.ROLLBACK) {
+                            if (!params.ROLLBACK_TAG) {
+                                error('❌ ROLLBACK_TAG is required when ROLLBACK is true.')
+                            }
+                            echo "🔄 Executing rollback to tag ${params.ROLLBACK_TAG}..."
+                            sh rollbackCommand
+                        } else {
+                            sh 'echo "🚀 Executing deployment with latest images... ${SERVER_IP}"'
+                            sh deployCommand
+                        }
                     }
                 }
             }
