@@ -18,7 +18,7 @@ pipeline {
         booleanParam(name: 'ROLLBACK', defaultValue: false, description: 'Tick to rollback instead of deploy')
         string(name: 'ROLLBACK_TAG', defaultValue: '', description: 'Image tag to rollback (required if ROLLBACK is true)')
         booleanParam(name: 'SKIP_PUSH_IMAGE', defaultValue: false, description: 'Tick to skip pushing Docker images to Docker Hub')
-        booleanParam(name: 'SKIP_BUILD_IMAGE', defaultValue: true, description: 'Tick to skip building Docker images')
+        booleanParam(name: 'SKIP_BUILD_IMAGE', defaultValue: false, description: 'Tick to skip building Docker images')
     }
 
     stages {
@@ -32,6 +32,7 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
+                    echo "Installing dependencies for branch: ${branchName}"
                     if (branchName.startsWith("fe/") || branchName == "main") {
                         dir('frontend') {
                             echo 'Installing frontend dependencies...'
