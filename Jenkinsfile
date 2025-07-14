@@ -32,19 +32,14 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
-                    echo "Installing dependencies for branch: ${branchName}"
-                    if (branchName.startsWith("fe/") ) {
-                        echo "Installing frontend dependencies... ${branchName}"
-                    } else {
-                        echo "Installing backend dependencies..."
-                    }
-                    if (branchName.startsWith("fe/") || branchName == "main") {
+                    
+                    if (branchName.startsWith("fe") || branchName == "main") {
                         dir('frontend') {
                             echo 'Installing frontend dependencies...'
                             sh 'npm install'
                         }
                     }
-                    if (branchName.startsWith("be/") || branchName == "main") {
+                    if (branchName.startsWith("be") || branchName == "main") {
                         dir('backend') {
                             echo 'Installing backend dependencies...'
                             sh 'npm install'
@@ -59,7 +54,7 @@ pipeline {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
                     def imageName = branchName = "fe" ? IMAGE_FE : IMAGE_BE
-                    def service = branchName.startsWith("fe/") ? 'frontend' : 'backend'
+                    def service = branchName.startsWith("fe") ? 'frontend' : 'backend'
 
                     if (params.SKIP_BUILD_IMAGE) {
                         echo "Skipping Docker build for ${service} because SKIP_BUILD_IMAGE is true."
@@ -80,8 +75,8 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
-                    def imageName = branchName.startsWith("fe/") ? IMAGE_FE : IMAGE_BE
-                    def service = branchName.startsWith("fe/") ? 'frontend' : 'backend'
+                    def imageName = branchName.startsWith("fe") ? IMAGE_FE : IMAGE_BE
+                    def service = branchName.startsWith("fe") ? 'frontend' : 'backend'
 
                     if (params.SKIP_PUSH_IMAGE) {
                         echo "Skipping Docker push for ${service} because SKIP_PUSH_IMAGE is true."
@@ -103,13 +98,13 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
-                    if (branchName.startsWith("fe/") || branchName == "main") {
+                    if (branchName.startsWith("fe") || branchName == "main") {
                         dir('frontend') {
                             echo '🧪 Running frontend tests...'
                             sh 'npm test'
                         }
                     }
-                    if (branchName.startsWith("be/") || branchName == "main") {
+                    if (branchName.startsWith("be") || branchName == "main") {
                         dir('backend') {
                             echo '🧪 Running backend tests...'
                             sh 'npm test'
