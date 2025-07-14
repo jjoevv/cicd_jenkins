@@ -56,9 +56,9 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
-                    def imageName = branchName = "fe" ? IMAGE_FE : IMAGE_BE
+                    def imageName = branchName.startsWith("fe") ? IMAGE_FE : IMAGE_BE
                     def service = branchName.startsWith("fe") ? 'frontend' : 'backend'
-
+                    echo "${branchName} Building Docker image for ${service} with tag ${imageName}:${TAG}..."
                     if (params.SKIP_BUILD_IMAGE) {
                         echo "Skipping Docker build for ${service} because SKIP_BUILD_IMAGE is true."
                     } else {
