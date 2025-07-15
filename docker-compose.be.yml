@@ -91,13 +91,6 @@ services:
     depends_on:
       - mongodb
 
-  frontend:
-    image: ${DOCKERHUB_USERNAME}/demo-feimage:latest
-    restart: always
-    ports:
-      - "80:3000"
-    depends_on:
-      - backend
 
 volumes:
   jenkins_home:
