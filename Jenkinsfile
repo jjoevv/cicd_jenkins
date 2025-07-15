@@ -51,7 +51,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Build and Push Docker Image') {
             steps {
                 script {
@@ -121,6 +121,9 @@ pipeline {
         }
 
         stage('Deploy or Rollback') {
+            when {
+                branch 'main'
+            }
             steps {
                 sshagent(['vps-ssh']) {
                     script {
@@ -149,10 +152,47 @@ pipeline {
                             ssh -o StrictHostKeyChecking=no ${USER_SERVER}@${SERVER_IP} '
                                 set -e
                                 cd ${TARGET_PATH}
-                                docker compose pull
-                                docker compose up -d
+
+                                IMAGE_FE="${IMAGE_FE}:${TAG}"
+                                IMAGE_BE="${IMAGE_BE}:${TAG}"
+
+                                DEPLOY_FE=false
+                                DEPLOY_BE=false
+
+                                echo "🔍 Checking if frontend image \$IMAGE_FE exists..."
+                                if docker manifest inspect \$IMAGE_FE > /dev/null 2>&1; then
+                                    echo "✅ Frontend image found. Will deploy frontend."
+                                    DEPLOY_FE=true
+                                else
+                                    echo "⚠️ Frontend image not found. Skipping frontend deployment."
+                                fi
+
+                                echo "🔍 Checking if backend image \$IMAGE_BE exists..."
+                                if docker manifest inspect \$IMAGE_BE > /dev/null 2>&1; then
+                                    echo "✅ Backend image found. Will deploy backend."
+                                    DEPLOY_BE=true
+                                else
+                                    echo "⚠️ Backend image not found. Skipping backend deployment."
+                                fi
+
+                                if [ "\$DEPLOY_FE" = true ]; then
+                                    echo "🚀 Deploying frontend..."
+                                    docker compose -f docker-compose.fe.yml pull
+                                    docker compose -f docker-compose.fe.yml up -d
+                                fi
+
+                                if [ "\$DEPLOY_BE" = true ]; then
+                                    echo "🚀 Deploying backend..."
+                                    docker compose -f docker-compose.be.yml pull
+                                    docker compose -f docker-compose.be.yml up -d
+                                fi
+
+                                if [ "\$DEPLOY_FE" = false ] && [ "\$DEPLOY_BE" = false ]; then
+                                    echo "⚠️ No images found for deployment. Skipping all."
+                                fi
                             '
-                        """
+                            """
+
 
                         def rollbackCommand = """
                             ssh -o StrictHostKeyChecking=no ${USER_SERVER}@${SERVER_IP} '
