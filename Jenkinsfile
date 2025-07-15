@@ -86,7 +86,7 @@ pipeline {
                     } else {
                         echo "Logging in to Docker Hub..."
                         sh """
-                            echo "${imageName}:latest" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+                            echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
                             echo "🚀 Pushing Docker images..."
                             docker push ${imageName}:latest
                             docker push ${imageName}:${TAG}
