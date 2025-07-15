@@ -13,8 +13,8 @@ pipeline {
         USER_SERVER = 'dev'
         SERVER_IP = credentials('LAB_SERVER_IP')
         TARGET_PATH = '/home/dev/democicd/'
-        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-nextappfe"
-        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-nextappbe"
+        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-feimage"
+        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-beimage"
     }
 
     parameters {
@@ -74,6 +74,26 @@ pipeline {
             }
         }
 
+        stage('Test') {
+            steps {
+                script {
+                    def branchName = env.BRANCH_NAME ?: "unknown"
+                    if (branchName.startsWith("fe") || branchName == "main") {
+                        dir('frontend') {
+                            echo '🧪 Running frontend tests...'
+                            sh 'npm test'
+                        }
+                    }
+                    if (branchName.startsWith("be") || branchName == "main") {
+                        dir('backend') {
+                            echo '🧪 Running backend tests...'
+                            sh 'npm test'
+                        }
+                    }
+                }
+            }
+        }
+
         stage('Push Docker Images') {
             steps {
                 script {
@@ -97,25 +117,6 @@ pipeline {
             }
         }
 
-        stage('Test') {
-            steps {
-                script {
-                    def branchName = env.BRANCH_NAME ?: "unknown"
-                    if (branchName.startsWith("fe") || branchName == "main") {
-                        dir('frontend') {
-                            echo '🧪 Running frontend tests...'
-                            sh 'npm test'
-                        }
-                    }
-                    if (branchName.startsWith("be") || branchName == "main") {
-                        dir('backend') {
-                            echo '🧪 Running backend tests...'
-                            sh 'npm test'
-                        }
-                    }
-                }
-            }
-        }
 
         stage('Cleanup After Build') {
             steps {
