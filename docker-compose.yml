@@ -80,7 +80,7 @@ services:
       - mongo_data:/data/db
 
   backend:
-    image: ${DOCKERHUB_USERNAME}/demo-nextappbe:latest
+    image: ${DOCKERHUB_USERNAME}/demo-beimage:latest
     restart: always
     env_file:
       - .env
@@ -92,7 +92,7 @@ services:
       - mongodb
 
   frontend:
-    image: ${DOCKERHUB_USERNAME}/demo-nextappfe:latest
+    image: ${DOCKERHUB_USERNAME}/demo-feimage:latest
     restart: always
     ports:
       - "80:3000"
