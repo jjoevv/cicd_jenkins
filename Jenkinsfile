@@ -5,16 +5,17 @@ pipeline {
         }
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
-        DOCKERHUB_USERNAME = "${DOCKERHUB_CREDENTIALS_USR}"
-        DOCKERHUB_PASSWORD = "${DOCKERHUB_CREDENTIALS_PSW}"
-        TAG = "build-${BUILD_NUMBER}"
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')      // Jenkins Credentials: username & password
+        DOCKERHUB_USERNAME = "${DOCKERHUB_CREDENTIALS_USR}"         // Username for Docker Hub
+        DOCKERHUB_PASSWORD = "${DOCKERHUB_CREDENTIALS_PSW}"         // Password for Docker Hub
+        TAG = "build-${env.BUILD_NUMBER}"                                 // Tag for images using Jenkins build number
 
-        USER_SERVER = 'dev'
-        SERVER_IP = credentials('LAB_SERVER_IP')
-        TARGET_PATH = '/home/dev/democicd/'
-        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-feimage"
-        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-beimage"
+        USER_SERVER = 'dev'                                         // SSH user on lab server
+        SERVER_IP = credentials('LAB_SERVER_IP')                    // Lab server IP from Secret Text Credential
+        TARGET_PATH = '/home/dev/democicd/'                          // Target path on the lab server
+        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-nextappfe"           // Docker Hub FE image
+        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-nextappbe"           // Docker Hub BE image
+
     }
 
     parameters {
