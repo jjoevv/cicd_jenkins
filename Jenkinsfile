@@ -51,28 +51,39 @@ pipeline {
                 }
             }
         }
-
-        stage('Build Docker Image') {
+        
+        stage('Build and Push Docker Image') {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
                     def imageName = branchName.startsWith("fe") ? IMAGE_FE : IMAGE_BE
                     def service = branchName.startsWith("fe") ? 'frontend' : 'backend'
+                    
                     echo "${branchName} Building Docker image for ${service} with tag ${imageName}:${TAG}..."
-                    if (params.SKIP_BUILD_IMAGE) {
-                        echo "Skipping Docker build for ${service} because SKIP_BUILD_IMAGE is true."
+
+                    if (params.SKIP_BUILD_IMAGE && params.SKIP_PUSH_IMAGE) {
+                        echo "Skipping Docker build and push for ${service} because SKIP_BUILD_IMAGE and SKIP_PUSH_IMAGE are true."
                     } else {
                         dir(service) {
                             sh 'docker info || { echo "Docker is not running. Exiting."; exit 1; }'
-                            echo "Building Docker image for ${service}..."
+                            echo "Building and pushing Docker image for ${service}..."
+
                             sh """
+                                echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+
                                 docker build -t ${imageName}:latest -t ${imageName}:${TAG} .
+
+                                docker push ${imageName}:latest
+                                docker push ${imageName}:${TAG}
+
+                                docker logout
                             """
                         }
                     }
                 }
             }
         }
+
 
         stage('Test') {
             steps {
@@ -94,28 +105,7 @@ pipeline {
             }
         }
 
-        stage('Push Docker Images') {
-            steps {
-                script {
-                    def branchName = env.BRANCH_NAME ?: "unknown"
-                    def imageName = branchName.startsWith("fe") ? IMAGE_FE : IMAGE_BE
-                    def service = branchName.startsWith("fe") ? 'frontend' : 'backend'
-
-                    if (params.SKIP_PUSH_IMAGE) {
-                        echo "Skipping Docker push for ${service} because SKIP_PUSH_IMAGE is true."
-                    } else {
-                        echo "Logging in to Docker Hub..."
-                        sh """
-                            echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
-                            echo "🚀 Pushing Docker images..."
-                            docker push ${imageName}:latest
-                            docker push ${imageName}:${TAG}
-                            docker logout
-                        """
-                    }
-                }
-            }
-        }
+        
 
 
         stage('Cleanup After Build') {
@@ -198,7 +188,10 @@ pipeline {
             githubNotify context: 'DemoCICD', status: 'SUCCESS', description: 'Pipeline passed'
         }
         failure {
-            githubNotify context: 'DemoCICD', status: 'FAILURE', description: 'Pipeline failed'
+            githubNotify context: 'DemoCICD', status: 'FAILURE', description: 'Pipeline failed';
+            mail to: 'hhnnttvy@gmail.com',
+             subject: "Failed Pipeline: ${currentBuild.fullDisplayName}",
+             body: "Something is wrong with ${env.BUILD_URL}"
         }
         always {
             cleanWs()
