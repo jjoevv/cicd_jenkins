@@ -70,38 +70,15 @@ services:
         - /sys:/sys:ro
         - /var/lib/docker/:/var/lib/docker:ro
       restart: unless-stopped
-  # MongoDB, Backend, and Frontend services
-  mongodb:
-    image: mongo:7
-    restart: always
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-
-  backend:
-    image: ${DOCKERHUB_USERNAME}/demo-beimage:latest
-    restart: always
-    env_file:
-      - .env
-    environment:
-      - MONGODB_URI=${MONGODB_URI}
-    ports:
-      - "4000:4000"
-    depends_on:
-      - mongodb
 
   frontend:
     image: ${DOCKERHUB_USERNAME}/demo-feimage:latest
     restart: always
     ports:
       - "80:3000"
-    depends_on:
-      - backend
 
 volumes:
   jenkins_home:
-  mongo_data: 
   prometheus_data:
   grafana_data:
 
