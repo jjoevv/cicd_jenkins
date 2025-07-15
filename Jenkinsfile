@@ -5,16 +5,17 @@ pipeline {
         }
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
-        DOCKERHUB_USERNAME = "${DOCKERHUB_CREDENTIALS_USR}"
-        DOCKERHUB_PASSWORD = "${DOCKERHUB_CREDENTIALS_PSW}"
-        TAG = "build-${BUILD_NUMBER}"
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')      // Jenkins Credentials: username & password
+        DOCKERHUB_USERNAME = "${DOCKERHUB_CREDENTIALS_USR}"         // Username for Docker Hub
+        DOCKERHUB_PASSWORD = "${DOCKERHUB_CREDENTIALS_PSW}"         // Password for Docker Hub
+        TAG = "build-${env.BUILD_NUMBER}"                                 // Tag for images using Jenkins build number
 
-        USER_SERVER = 'dev'
-        SERVER_IP = credentials('LAB_SERVER_IP')
-        TARGET_PATH = '/home/dev/democicd/'
-        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-feimage"
-        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-beimage"
+        USER_SERVER = 'dev'                                         // SSH user on lab server
+        SERVER_IP = credentials('LAB_SERVER_IP')                    // Lab server IP from Secret Text Credential
+        TARGET_PATH = '/home/dev/democicd/'                          // Target path on the lab server
+        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-nextappfe"           // Docker Hub FE image
+        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-nextappbe"           // Docker Hub BE image
+
     }
 
     parameters {
@@ -37,16 +38,22 @@ pipeline {
                     def branchName = env.BRANCH_NAME ?: "unknown"
                     
                     if (branchName.startsWith("fe") || branchName == "main") {
-                        dir('frontend') {
+                        if (fileExists('frontend')) {
+                            dir('frontend') {
                             echo 'Installing frontend dependencies...'
                             sh 'npm install'
                         }
-                    }
-                    if (branchName.startsWith("be") || branchName == "main") {
-                        dir('backend') {
-                            echo 'Installing backend dependencies...'
-                            sh 'npm install'
+                        } else {
+                            echo "⚠️ Folder 'frontend' does not exist. Skipping backend dependency installation."
                         }
+                        
+                        if (fileExists('backend')) {
+                            echo 'Installing backend dependencies with package-lock.json...'
+                            sh 'npm install'
+                        } else {
+                            echo 'No package-lock.json found, using npm install.'
+                        }
+                        
                     }
                 }
             }
@@ -56,30 +63,62 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
-                    def imageName = branchName.startsWith("fe") ? IMAGE_FE : IMAGE_BE
+                    def imageName = branchName.startsWith("fe") ? IMAGE_FE : IMAGE_BE                    
                     def service = branchName.startsWith("fe") ? 'frontend' : 'backend'
                     
                     echo "${branchName} Building Docker image for ${service} with tag ${imageName}:${TAG}..."
+                    
+                    if (branchName.startsWith('main')) {
+                        echo "Building and pushing Docker image for ${service}..."
+                        
+                        echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+                        if (fileExists('frontend')) {
+                            sh """
+
+                            docker build -t ${IMAGE_FE}:latest -t ${IMAGE_FE}:${TAG} ./frontend
+
+                            docker push ${IMAGE_FE}:latest 
+                            docker push ${IMAGE_FE}:${TAG}
+
+                            docker logout
+                            """
+                        }
+                        if (fileExists('backend')) {
+                            sh """
+
+                            docker build -t ${IMAGE_BE}:latest -t ${IMAGE_BE}:${TAG} ./backend
+
+                            docker push ${IMAGE_BE}:latest 
+                            docker push ${IMAGE_BE}:${TAG}
+
+                            docker logout
+                            """
+                        }
+                        
+                    } else {
 
                     if (params.SKIP_BUILD_IMAGE && params.SKIP_PUSH_IMAGE) {
                         echo "Skipping Docker build and push for ${service} because SKIP_BUILD_IMAGE and SKIP_PUSH_IMAGE are true."
                     } else {
-                        dir(service) {
-                            sh 'docker info || { echo "Docker is not running. Exiting."; exit 1; }'
-                            echo "Building and pushing Docker image for ${service}..."
+                            dir(service) {
+                                sh 'docker info || { echo "Docker is not running. Exiting."; exit 1; }'
+                                echo "Building and pushing Docker image for ${service}..."
 
-                            sh """
-                                echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+                                sh """
+                                    echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
 
-                                docker build -t ${imageName}:latest -t ${imageName}:${TAG} .
+                                    docker build -t ${imageName}:latest -t ${imageName}:${TAG} .
 
-                                docker push ${imageName}:latest
-                                docker push ${imageName}:${TAG}
+                                    docker push ${imageName}:latest
+                                    docker push ${imageName}:${TAG}
 
-                                docker logout
-                            """
+                                    docker logout
+                                """
+                            }
                         }
                     }
+                    
+
                 }
             }
         }
@@ -89,17 +128,29 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
-                    if (branchName.startsWith("fe") || branchName == "main") {
+                    // Check if both frontend and backend directories exist
+                    if (fileExists('frontend')) {
+                        if (branchName.startsWith("fe") || branchName == "main") {
                         dir('frontend') {
                             echo '🧪 Running frontend tests...'
                             sh 'npm test'
                         }
                     }
-                    if (branchName.startsWith("be") || branchName == "main") {
-                        dir('backend') {
+
+                    } else {
+                        echo "⚠️ One or both of the 'frontend' and 'backend' directories do not exist. Skipping tests."
+                        return
+                    }
+                    if (fileExists('backend')) {
+                        if (branchName.startsWith("be") || branchName == "main") {
                             echo '🧪 Running backend tests...'
-                            sh 'npm test'
+                            dir('backend') {
+                                sh 'npm test'
+                            }
                         }
+                    } else {
+                        echo "⚠️ One or both of the 'frontend' and 'backend' directories do not exist. Skipping tests."
+                        return
                     }
                 }
             }
