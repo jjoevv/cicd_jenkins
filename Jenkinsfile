@@ -87,7 +87,7 @@ pipeline {
                         echo "Logging in to Docker Hub..."
                         sh """
                             echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
-                            echo "🚀 Pushing Docker images..."
+                            echo "🚀 Pushing Docker images... ${imageName}:latest"
                             docker push ${imageName}:latest
                             docker push ${imageName}:${TAG}
                             docker logout
@@ -139,12 +139,12 @@ pipeline {
                         def copySuccess = false
                         try {
                             echo "Attempting to copy files to server..."
-                            sh """
+                            sh label: 'Copy docker-compose.yml to server', script: '''
                                 mkdir -p ${TARGET_PATH} 
 
                                 scp -o ConnectTimeout=20 -o StrictHostKeyChecking=no docker-compose.yml ${USER_SERVER}@${SERVER_IP}:${TARGET_PATH}docker-compose.yml
                                 scp -o ConnectTimeout=20 -o StrictHostKeyChecking=no prometheus.yml ${USER_SERVER}@${SERVER_IP}:${TARGET_PATH}prometheus.yml
-                            """
+                            '''
                             copySuccess = true
                             echo "✅ Files copied successfully."
                         } catch (err) {
