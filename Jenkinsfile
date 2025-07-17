@@ -13,8 +13,8 @@ pipeline {
         USER_SERVER = 'dev'                                         // SSH user on lab server
         SERVER_IP = credentials('LAB_SERVER_IP')                    // Lab server IP from Secret Text Credential
         TARGET_PATH = '/home/dev/democicd/'                          // Target path on the lab server
-        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-nextappfe"           // Docker Hub FE image
-        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-nextappbe"           // Docker Hub BE image
+        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-feimage"           // Docker Hub FE image
+        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-beimage"           // Docker Hub BE image
 
     }
 
@@ -73,6 +73,7 @@ pipeline {
                         
                         echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
                         if (fileExists('frontend')) {
+                            echo "Building and pushing Docker image for frontend..."
                             sh """
 
                             docker build -t ${IMAGE_FE}:latest -t ${IMAGE_FE}:${TAG} ./frontend
@@ -84,8 +85,9 @@ pipeline {
                             """
                         }
                         if (fileExists('backend')) {
+                            echo "Building and pushing Docker image for backend..."
                             sh """
-
+                            
                             docker build -t ${IMAGE_BE}:latest -t ${IMAGE_BE}:${TAG} ./backend
 
                             docker push ${IMAGE_BE}:latest 
