@@ -16,6 +16,8 @@ pipeline {
         IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-feimage"           // Docker Hub FE image
         IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-beimage"           // Docker Hub BE image
 
+        FAILED_STAGE = ''                                           // Variable to store the name of the failed stage
+
     }
 
     parameters {
@@ -35,26 +37,32 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 script {
-                    def branchName = env.BRANCH_NAME ?: "unknown"
+                    try (
+                        def branchName = env.BRANCH_NAME ?: "unknown"
                     
-                    if (branchName.startsWith("fe") || branchName == "main") {
-                        if (fileExists('frontend')) {
-                            dir('frontend') {
-                            echo 'Installing frontend dependencies...'
-                            sh 'npm install'
+                        if (branchName.startsWith("fe") || branchName == "main") {
+                            if (fileExists('frontend')) {
+                                dir('frontend') {
+                                echo 'Installing frontend dependencies...'
+                                sh 'npm install'
+                            }
+                            } else {
+                                echo "⚠️ Folder 'frontend' does not exist. Skipping backend dependency installation."
+                            }
+                            
+                            if (fileExists('backend')) {
+                                echo 'Installing backend dependencies with package-lock.json...'
+                                sh 'npm install'
+                            } else {
+                                echo 'No package-lock.json found, using npm install.'
+                            }
+                            
                         }
-                        } else {
-                            echo "⚠️ Folder 'frontend' does not exist. Skipping backend dependency installation."
-                        }
-                        
-                        if (fileExists('backend')) {
-                            echo 'Installing backend dependencies with package-lock.json...'
-                            sh 'npm install'
-                        } else {
-                            echo 'No package-lock.json found, using npm install.'
-                        }
-                        
+                
+                    ) catch (err) {
+                        error("❌ Node.js installation check failed: ${err.getMessage()}")
                     }
+                    
                 }
             }
         }
@@ -62,7 +70,8 @@ pipeline {
         stage('Build and Push Docker Image') {
             steps {
                 script {
-                    def branchName = env.BRANCH_NAME ?: "unknown"
+                    try (
+                        def branchName = env.BRANCH_NAME ?: "unknown"
                     def imageName = branchName.startsWith("fe") ? IMAGE_FE : IMAGE_BE                    
                     def service = branchName.startsWith("fe") ? 'frontend' : 'backend'
                     
@@ -118,6 +127,10 @@ pipeline {
                                 """
                             }
                         }
+                    }
+                    ) catch (err) {
+                        env.FAILED_STAGE = 'Build and Push Docker Image'
+                        error("❌ Docker build or push failed: ${err.getMessage()}")
                     }
                     
 
@@ -291,7 +304,7 @@ pipeline {
          failure {
             githubNotify context: 'DemoCICD', status: 'FAILURE', description: 'Pipeline failed'
             emailext (
-                subject: "[Jenkins Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}]",
+                subject: "[Jenkins Build Failed: ${env.FAILED_STAGE} #${env.BUILD_NUMBER}]",
                 body: """
                     <p>❌ Build failed at stage: ${env.STAGE_NAME}</p>
                     <p>Job: <a href="${env.BUILD_URL}">${env.JOB_NAME} #${env.BUILD_NUMBER}</a></p>
