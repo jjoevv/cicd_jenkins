@@ -37,41 +37,41 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 script {
-                    try (
+                    try {
                         def branchName = env.BRANCH_NAME ?: "unknown"
-                    
+                        
                         if (branchName.startsWith("fe") || branchName == "main") {
                             if (fileExists('frontend')) {
                                 dir('frontend') {
-                                echo 'Installing frontend dependencies...'
-                                sh 'npm install'
-                            }
+                                    echo 'Installing frontend dependencies...'
+                                    sh 'npm install'
+                                }
                             } else {
-                                echo "⚠️ Folder 'frontend' does not exist. Skipping backend dependency installation."
+                                echo "⚠️ Folder 'frontend' does not exist. Skipping frontend dependency installation."
                             }
                             
                             if (fileExists('backend')) {
-                                echo 'Installing backend dependencies with package-lock.json...'
-                                sh 'npm install'
+                                dir('backend') {
+                                    echo 'Installing backend dependencies with package-lock.json...'
+                                    sh 'npm install'
+                                }
                             } else {
-                                echo 'No package-lock.json found, using npm install.'
+                                echo "⚠️ Folder 'backend' does not exist. Skipping backend dependency installation."
                             }
-                            
                         }
-                
-                    ) catch (err) {
+                    } catch (err) {
                         error("❌ Node.js installation check failed: ${err.getMessage()}")
                     }
-                    
                 }
             }
         }
 
+
         stage('Build and Push Docker Image') {
             steps {
                 script {
-                    try (
-                        def branchName = env.BRANCH_NAME ?: "unknown"
+                    try {
+                    def branchName = env.BRANCH_NAME ?: "unknown"
                     def imageName = branchName.startsWith("fe") ? IMAGE_FE : IMAGE_BE                    
                     def service = branchName.startsWith("fe") ? 'frontend' : 'backend'
                     
@@ -108,27 +108,27 @@ pipeline {
                         
                     } else {
 
-                    if (params.SKIP_BUILD_IMAGE && params.SKIP_PUSH_IMAGE) {
-                        echo "Skipping Docker build and push for ${service} because SKIP_BUILD_IMAGE and SKIP_PUSH_IMAGE are true."
-                    } else {
-                            dir(service) {
-                                sh 'docker info || { echo "Docker is not running. Exiting."; exit 1; }'
-                                echo "Building and pushing Docker image for ${service}..."
+                        if (params.SKIP_BUILD_IMAGE && params.SKIP_PUSH_IMAGE) {
+                            echo "Skipping Docker build and push for ${service} because SKIP_BUILD_IMAGE and SKIP_PUSH_IMAGE are true."
+                        } else {
+                                dir(service) {
+                                    sh 'docker info || { echo "Docker is not running. Exiting."; exit 1; }'
+                                    echo "Building and pushing Docker image for ${service}..."
 
-                                sh """
-                                    echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+                                    sh """
+                                        echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
 
-                                    docker build -t ${imageName}:latest -t ${imageName}:${TAG} .
+                                        docker build -t ${imageName}:latest -t ${imageName}:${TAG} .
 
-                                    docker push ${imageName}:latest
-                                    docker push ${imageName}:${TAG}
+                                        docker push ${imageName}:latest
+                                        docker push ${imageName}:${TAG}
 
-                                    docker logout
-                                """
+                                        docker logout
+                                    """
+                                }
                             }
-                        }
                     }
-                    ) catch (err) {
+                    } catch (err) {
                         env.FAILED_STAGE = 'Build and Push Docker Image'
                         error("❌ Docker build or push failed: ${err.getMessage()}")
                     }
