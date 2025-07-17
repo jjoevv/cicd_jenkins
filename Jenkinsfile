@@ -314,7 +314,6 @@ pipeline {
         }
         always {
             cleanWs()
-            docker logout
         }
     }
 }
