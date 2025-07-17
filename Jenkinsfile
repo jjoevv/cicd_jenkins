@@ -277,12 +277,25 @@ pipeline {
     post {
         success {
             githubNotify context: 'DemoCICD', status: 'SUCCESS', description: 'Pipeline passed'
+            emailext (
+                subject: "[Jenkins Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}]",
+                body: """
+                    <p>An pipeline Jenkins run successfully!</p>
+                    <p>Job: <a href="${env.BUILD_URL}">${env.JOB_NAME} #${env.BUILD_NUMBER}</a></p>
+                """,
+                to: "hhnnttvy@gmail.com"
+            )
         }
-        failure {
-            githubNotify context: 'DemoCICD', status: 'FAILURE', description: 'Pipeline failed';
-            mail to: 'hhnnttvy@gmail.com',
-             subject: "Failed Pipeline: ${currentBuild.fullDisplayName}",
-             body: "Something is wrong with ${env.BUILD_URL}"
+         failure {
+            githubNotify context: 'DemoCICD', status: 'FAILURE', description: 'Pipeline failed'
+            emailext (
+                subject: "[Jenkins Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}]",
+                body: """
+                    <p>❌ Build failed at stage: ${env.STAGE_NAME}</p>
+                    <p>Job: <a href="${env.BUILD_URL}">${env.JOB_NAME} #${env.BUILD_NUMBER}</a></p>
+                """,
+                to: "hhnnttvy@gmail.com"
+            )
         }
         always {
             cleanWs()
