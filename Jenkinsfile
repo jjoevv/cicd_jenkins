@@ -293,7 +293,7 @@ pipeline {
         success {
             githubNotify context: 'DemoCICD', status: 'SUCCESS', description: 'Pipeline passed'
             emailext (
-                subject: "[Jenkins Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}]",
+                subject: "[Jenkins Build Success: #${env.BUILD_NUMBER}]",
                 body: """
                     <p>An pipeline Jenkins run successfully!</p>
                     <p>Job: <a href="${env.BUILD_URL}">${env.JOB_NAME} #${env.BUILD_NUMBER}</a></p>
