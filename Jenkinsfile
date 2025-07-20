@@ -13,8 +13,8 @@ pipeline {
         USER_SERVER = 'dev'                                         // SSH user on lab server
         SERVER_IP = credentials('LAB_SERVER_IP')                    // Lab server IP from Secret Text Credential
         TARGET_PATH = '/home/dev/democicd/'                          // Target path on the lab server
-        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-nextappfe"           // Docker Hub FE image
-        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-nextappbe"           // Docker Hub BE image
+        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-feimage"           // Docker Hub FE image
+        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-beimage"           // Docker Hub BE image
 
     }
 
