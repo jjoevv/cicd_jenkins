@@ -94,6 +94,9 @@ pipeline {
             }
         }
         stage('Build and Push Docker Image') {
+            when {
+                branch 'main'
+            }
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
