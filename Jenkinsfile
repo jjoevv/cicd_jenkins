@@ -44,14 +44,15 @@ pipeline {
                             sh 'npm install'
                         }
                         } else {
-                            echo "⚠️ Folder 'frontend' does not exist. Skipping backend dependency installation."
+                            echo "⚠️ Folder 'frontend' does not exist. Skipping frontend dependency installation."
                         }
                         
                         if (fileExists('backend')) {
+                            dir('backend') {
                             echo 'Installing backend dependencies with package-lock.json...'
                             sh 'npm install'
                         } else {
-                            echo 'No package-lock.json found, using npm install.'
+                            echo "⚠️ Folder 'backend' does not exist. Skipping backend dependency installation."
                         }
                         
                     }
