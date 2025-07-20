@@ -106,6 +106,7 @@ pipeline {
                         echo "Building and pushing Docker image for ${service}..."
                         
                         echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+
                         if (fileExists('frontend')) {
                             sh """
 
