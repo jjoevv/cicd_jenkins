@@ -8,7 +8,8 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')      // Jenkins Credentials: username & password
         DOCKERHUB_USERNAME = "${DOCKERHUB_CREDENTIALS_USR}"         // Username for Docker Hub
         DOCKERHUB_PASSWORD = "${DOCKERHUB_CREDENTIALS_PSW}"         // Password for Docker Hub
-        TAG = "build-${env.BUILD_NUMBER}"                                 // Tag for images using Jenkins build number
+        TAG = "build-${env.BUILD_NUMBER}"                           // Tag for images using Jenkins build number
+        BRANCH_NAME_ENV = "${env.BRANCH_NAME}"                      // Branch name from the environment  
 
         USER_SERVER = 'dev'                                         // SSH user on lab server
         SERVER_IP = credentials('LAB_SERVER_IP')                    // Lab server IP from Secret Text Credential
@@ -131,14 +132,12 @@ pipeline {
                     } catch (err) {
                         env.FAILED_STAGE = 'Build and Push Docker Image'
                         error("❌ Docker build or push failed: ${err.getMessage()}")
-                    }
-                    
 
                 }
             }
         }
 
-
+        // Stage to run tests
         stage('Test') {
             steps {
                 script {
