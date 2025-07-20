@@ -32,7 +32,7 @@ pipeline {
             }
         }
 
-         stage('Install Dependencies') {
+        stage('Install Dependencies') {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
