@@ -14,8 +14,10 @@ pipeline {
         USER_SERVER = 'dev'                                         // SSH user on lab server
         SERVER_IP = credentials('LAB_SERVER_IP')                    // Lab server IP from Secret Text Credential
         TARGET_PATH = '/home/dev/democicd/'                          // Target path on the lab server
-        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-nextappfe"           // Docker Hub FE image
-        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-nextappbe"           // Docker Hub BE image
+        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-feimage"           // Docker Hub FE image
+        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-beimage"           // Docker Hub BE image
+
+        FAILED_STAGE = ''                                           // Variable to store the name of the failed stage
 
     }
 
@@ -36,60 +38,101 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 script {
-                    if (env.BRANCH_NAME.startsWith("fe/") || env.BRANCH_NAME == "main") {
-                        install('frontend')
-                    }
-                    if (env.BRANCH_NAME.startsWith("be/") || env.BRANCH_NAME == "main") {
-                        install('backend')
-                    }
-                }
-            }
-        }
-        // Stage to build Docker images
-        // This stage will build Docker images for both frontend and backend
-        // It will only run if the SKIP_BUILD_IMAGE parameter is false
-    
-        stage('Build Docker Images') {
-            when {
-                anyOf {
-                    branch 'main'
-                    expression { env.BRANCH_NAME.startsWith('fe/') }
-                    expression { env.BRANCH_NAME.startsWith('be/') }
-                }
-            }
-            steps {
-                script {
-                    if (env.BRANCH_NAME.startsWith("fe/") || env.BRANCH_NAME == "main") {
-                        buildDockerImage('frontend')
-                    }
-                    if (env.BRANCH_NAME.startsWith("be/") || env.BRANCH_NAME == "main") {
-                        buildDockerImage('backend')
+                    try {
+                        def branchName = env.BRANCH_NAME ?: "unknown"
+                        
+                        if (branchName.startsWith("fe") || branchName == "main") {
+                            if (fileExists('frontend')) {
+                                dir('frontend') {
+                                    echo 'Installing frontend dependencies...'
+                                    sh 'npm install'
+                                }
+                            } else {
+                                echo "⚠️ Folder 'frontend' does not exist. Skipping frontend dependency installation."
+                            }
+                            
+                            if (fileExists('backend')) {
+                                dir('backend') {
+                                    echo 'Installing backend dependencies with package-lock.json...'
+                                    sh 'npm install'
+                                }
+                            } else {
+                                echo "⚠️ Folder 'backend' does not exist. Skipping backend dependency installation."
+                            }
+                        }
+                    } catch (err) {
+                        error("❌ Node.js installation check failed: ${err.getMessage()}")
                     }
                 }
             }
         }
 
-        // Stage to push Docker images to Docker Hub
-        // This stage will run only if the branch is main or starts with 'fe/' or 'be/'
-        // It will push the images to Docker Hub using the credentials stored in Jenkins
-        // The images will be tagged with 'latest' and the build number
-        // If SKIP_PUSH_IMAGE is true, this stage will be skipped
-        stage('Push Docker Images') {
-            when {
-                anyOf {
-                    branch 'main'
-                    expression { env.BRANCH_NAME.startsWith('fe/') }
-                    expression { env.BRANCH_NAME.startsWith('be/') }
-                }
-            }
+
+        stage('Build and Push Docker Image') {
             steps {
                 script {
-                    if (env.BRANCH_NAME.startsWith("fe/") || env.BRANCH_NAME == "main") {
-                        pushDockerImage('frontend')
+                    try {
+                    def branchName = env.BRANCH_NAME ?: "unknown"
+                    def imageName = branchName.startsWith("fe") ? IMAGE_FE : IMAGE_BE                    
+                    def service = branchName.startsWith("fe") ? 'frontend' : 'backend'
+                    
+                    echo "${branchName} Building Docker image for ${service} with tag ${imageName}:${TAG}..."
+                    
+                    if (branchName.startsWith('main')) {
+                        echo "Building and pushing Docker image for ${service}..."
+                        
+                        echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+                        if (fileExists('frontend')) {
+                            echo "Building and pushing Docker image for frontend..."
+                            sh """
+
+                            docker build -t ${IMAGE_FE}:latest -t ${IMAGE_FE}:${TAG} ./frontend
+
+                            docker push ${IMAGE_FE}:latest 
+                            docker push ${IMAGE_FE}:${TAG}
+
+                            docker logout
+                            """
+                        }
+                        if (fileExists('backend')) {
+                            echo "Building and pushing Docker image for backend..."
+                            sh """
+                            
+                            docker build -t ${IMAGE_BE}:latest -t ${IMAGE_BE}:${TAG} ./backend
+
+                            docker push ${IMAGE_BE}:latest 
+                            docker push ${IMAGE_BE}:${TAG}
+
+                            docker logout
+                            """
+                        }
+                        
+                    } else {
+
+                        if (params.SKIP_BUILD_IMAGE && params.SKIP_PUSH_IMAGE) {
+                            echo "Skipping Docker build and push for ${service} because SKIP_BUILD_IMAGE and SKIP_PUSH_IMAGE are true."
+                        } else {
+                                dir(service) {
+                                    sh 'docker info || { echo "Docker is not running. Exiting."; exit 1; }'
+                                    echo "Building and pushing Docker image for ${service}..."
+
+                                    sh """
+                                        echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+
+                                        docker build -t ${imageName}:latest -t ${imageName}:${TAG} .
+
+                                        docker push ${imageName}:latest
+                                        docker push ${imageName}:${TAG}
+
+                                        docker logout
+                                    """
+                                }
+                            }
                     }
-                    if (env.BRANCH_NAME.startsWith("be/") || env.BRANCH_NAME == "main") {
-                        pushDockerImage('backend')
-                    }
+                    } catch (err) {
+                        env.FAILED_STAGE = 'Build and Push Docker Image'
+                        error("❌ Docker build or push failed: ${err.getMessage()}")
+
                 }
             }
         }
@@ -99,17 +142,29 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
-                    if (branchName.startsWith("fe") || branchName == "main") {
+                    // Check if both frontend and backend directories exist
+                    if (fileExists('frontend')) {
+                        if (branchName.startsWith("fe") || branchName == "main") {
                         dir('frontend') {
                             echo '🧪 Running frontend tests...'
                             sh 'npm test'
                         }
                     }
-                    if (branchName.startsWith("be") || branchName == "main") {
-                        dir('backend') {
+
+                    } else {
+                        echo "⚠️ One or both of the 'frontend' and 'backend' directories do not exist. Skipping tests."
+                        return
+                    }
+                    if (fileExists('backend')) {
+                        if (branchName.startsWith("be") || branchName == "main") {
                             echo '🧪 Running backend tests...'
-                            sh 'npm test'
+                            dir('backend') {
+                                sh 'npm test'
+                            }
                         }
+                    } else {
+                        echo "⚠️ One or both of the 'frontend' and 'backend' directories do not exist. Skipping tests."
+                        return
                     }
                 }
             }
@@ -236,12 +291,25 @@ pipeline {
     post {
         success {
             githubNotify context: 'DemoCICD', status: 'SUCCESS', description: 'Pipeline passed'
+            emailext (
+                subject: "[Jenkins Build Success: #${env.BUILD_NUMBER}]",
+                body: """
+                    <p>An pipeline Jenkins run successfully!</p>
+                    <p>Job: <a href="${env.BUILD_URL}">${env.JOB_NAME} #${env.BUILD_NUMBER}</a></p>
+                """,
+                to: "hhnnttvy@gmail.com"
+            )
         }
-        failure {
-            githubNotify context: 'DemoCICD', status: 'FAILURE', description: 'Pipeline failed';
-            mail to: 'hhnnttvy@gmail.com',
-             subject: "Failed Pipeline: ${currentBuild.fullDisplayName}",
-             body: "Something is wrong with ${env.BUILD_URL}"
+         failure {
+            githubNotify context: 'DemoCICD', status: 'FAILURE', description: 'Pipeline failed'
+            emailext (
+                subject: "[Jenkins Build Failed: ${env.FAILED_STAGE} #${env.BUILD_NUMBER}]",
+                body: """
+                    <p>❌ Build failed at stage: ${env.STAGE_NAME}</p>
+                    <p>Job: <a href="${env.BUILD_URL}">${env.JOB_NAME} #${env.BUILD_NUMBER}</a></p>
+                """,
+                to: "hhnnttvy@gmail.com"
+            )
         }
         always {
             cleanWs()
