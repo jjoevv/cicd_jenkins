@@ -14,7 +14,8 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 COPY --from=builder /app ./ 
-RUN npm install --production
+RUN npm install --omit=dev
+RUN npm cache clean --force
 
 EXPOSE 3000
 
