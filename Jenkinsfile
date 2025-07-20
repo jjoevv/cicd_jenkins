@@ -36,20 +36,22 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
-
+                    
                     if (branchName.startsWith("fe") || branchName == "main") {
                         if (fileExists('frontend')) {
                             dir('frontend') {
-                                echo 'Installing frontend dependencies...'
+                                echo '📦 Installing frontend dependencies...'
                                 sh 'npm install'
                             }
                         } else {
                             echo "⚠️ Folder 'frontend' does not exist. Skipping frontend dependency installation."
                         }
+                    }
 
+                    if (branchName.startsWith("be") || branchName == "main") {
                         if (fileExists('backend')) {
                             dir('backend') {
-                                echo 'Installing backend dependencies with package-lock.json...'
+                                echo '📦 Installing backend dependencies...'
                                 sh 'npm install'
                             }
                         } else {
@@ -60,6 +62,37 @@ pipeline {
             }
         }
 
+        stage('Test') {
+            steps {
+                script {
+                    def branchName = env.BRANCH_NAME ?: "unknown"
+                    // Check if both frontend and backend directories exist
+                    if (fileExists('frontend')) {
+                        if (branchName.startsWith("fe") || branchName == "main") {
+                        dir('frontend') {
+                            echo '🧪 Running frontend tests...'
+                            sh 'npm test'
+                        }
+                    }
+
+                    } else {
+                        echo "⚠️ One or both of the 'frontend' and 'backend' directories do not exist. Skipping tests."
+                        return
+                    }
+                    if (fileExists('backend')) {
+                        if (branchName.startsWith("be") || branchName == "main") {
+                            echo '🧪 Running backend tests...'
+                            dir('backend') {
+                                sh 'npm test'
+                            }
+                        }
+                    } else {
+                        echo "⚠️ One or both of the 'frontend' and 'backend' directories do not exist. Skipping tests."
+                        return
+                    }
+                }
+            }
+        }
         stage('Build and Push Docker Image') {
             steps {
                 script {
@@ -125,37 +158,6 @@ pipeline {
         }
 
 
-        stage('Test') {
-            steps {
-                script {
-                    def branchName = env.BRANCH_NAME ?: "unknown"
-                    // Check if both frontend and backend directories exist
-                    if (fileExists('frontend')) {
-                        if (branchName.startsWith("fe") || branchName == "main") {
-                        dir('frontend') {
-                            echo '🧪 Running frontend tests...'
-                            sh 'npm test'
-                        }
-                    }
-
-                    } else {
-                        echo "⚠️ One or both of the 'frontend' and 'backend' directories do not exist. Skipping tests."
-                        return
-                    }
-                    if (fileExists('backend')) {
-                        if (branchName.startsWith("be") || branchName == "main") {
-                            echo '🧪 Running backend tests...'
-                            dir('backend') {
-                                sh 'npm test'
-                            }
-                        }
-                    } else {
-                        echo "⚠️ One or both of the 'frontend' and 'backend' directories do not exist. Skipping tests."
-                        return
-                    }
-                }
-            }
-        }
 
         
 
