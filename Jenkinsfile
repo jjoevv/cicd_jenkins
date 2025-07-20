@@ -32,29 +32,29 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
+         stage('Install Dependencies') {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
-                    
+
                     if (branchName.startsWith("fe") || branchName == "main") {
                         if (fileExists('frontend')) {
                             dir('frontend') {
-                            echo 'Installing frontend dependencies...'
-                            sh 'npm install'
-                        }
+                                echo 'Installing frontend dependencies...'
+                                sh 'npm install'
+                            }
                         } else {
                             echo "⚠️ Folder 'frontend' does not exist. Skipping frontend dependency installation."
                         }
-                        
+
                         if (fileExists('backend')) {
                             dir('backend') {
-                            echo 'Installing backend dependencies with package-lock.json...'
-                            sh 'npm install'
+                                echo 'Installing backend dependencies with package-lock.json...'
+                                sh 'npm install'
+                            }
                         } else {
                             echo "⚠️ Folder 'backend' does not exist. Skipping backend dependency installation."
                         }
-                        
                     }
                 }
             }
