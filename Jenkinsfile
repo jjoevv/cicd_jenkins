@@ -13,8 +13,8 @@ pipeline {
         USER_SERVER = 'dev'                                         // SSH user on lab server
         SERVER_IP = credentials('LAB_SERVER_IP')                    // Lab server IP from Secret Text Credential
         TARGET_PATH = '/home/dev/democicd/'                          // Target path on the lab server
-        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-nextappfe"           // Docker Hub FE image
-        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-nextappbe"           // Docker Hub BE image
+        IMAGE_FE = "${DOCKERHUB_USERNAME}/demo-feimage"           // Docker Hub FE image
+        IMAGE_BE = "${DOCKERHUB_USERNAME}/demo-beimage"           // Docker Hub BE image
 
     }
 
@@ -69,16 +69,16 @@ pipeline {
                     // Check if both frontend and backend directories exist
                     if (fileExists('frontend')) {
                         if (branchName.startsWith("fe") || branchName == "main") {
-                            dir('frontend') {
-                                echo '🧪 Running frontend tests...'
-                                sh 'npm test'
-                            }
+                        dir('frontend') {
+                            echo '🧪 Running frontend tests...'
+                            sh 'npm test'
                         }
+                    }
+
                     } else {
                         echo "⚠️ One or both of the 'frontend' and 'backend' directories do not exist. Skipping tests."
                         return
                     }
-                    
                     if (fileExists('backend')) {
                         if (branchName.startsWith("be") || branchName == "main") {
                             echo '🧪 Running backend tests...'
