@@ -97,68 +97,60 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: "unknown"
-                    def imageName = branchName.startsWith("fe") ? IMAGE_FE : IMAGE_BE                    
+                    def imageName = branchName.startsWith("fe") ? IMAGE_FE : IMAGE_BE
                     def service = branchName.startsWith("fe") ? 'frontend' : 'backend'
-                    
-                    echo "${branchName} Building Docker image for ${service} with tag ${imageName}:${TAG}..."
-                    
-                    if (branchName.startsWith('main')) {
-                        echo "Building and pushing Docker image for ${service}..."
-                        
-                        echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+
+                    echo "🔨 ${branchName} Building Docker image for ${service} with tag ${imageName}:${TAG}..."
+
+                    // Always login once before push
+                    sh """
+                        echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+                    """
+
+                    if (branchName == 'main') {
+                        echo "🚀 Building and pushing Docker image for ${service} on main..."
 
                         if (fileExists('frontend')) {
                             sh """
-
-                            docker build -t ${IMAGE_FE}:latest -t ${IMAGE_FE}:${TAG} ./frontend
-
-                            docker push ${IMAGE_FE}:latest 
-                            docker push ${IMAGE_FE}:${TAG}
-
-                            docker logout
+                                docker build -t ${IMAGE_FE}:latest -t ${IMAGE_FE}:${TAG} ./frontend
+                                docker push ${IMAGE_FE}:latest
+                                docker push ${IMAGE_FE}:${TAG}
                             """
                         }
                         if (fileExists('backend')) {
                             sh """
-
-                            docker build -t ${IMAGE_BE}:latest -t ${IMAGE_BE}:${TAG} ./backend
-
-                            docker push ${IMAGE_BE}:latest 
-                            docker push ${IMAGE_BE}:${TAG}
-
-                            docker logout
+                                docker build -t ${IMAGE_BE}:latest -t ${IMAGE_BE}:${TAG} ./backend
+                                docker push ${IMAGE_BE}:latest
+                                docker push ${IMAGE_BE}:${TAG}
                             """
                         }
-                        
                     } else {
+                        if (params.SKIP_BUILD_IMAGE && params.SKIP_PUSH_IMAGE) {
+                            echo "⏭️ Skipping Docker build and push for ${service} due to flags."
+                        } else {
+                            if (fileExists(service)) {
+                                dir(service) {
+                                    sh 'docker info || { echo "Docker is not running. Exiting."; exit 1; }'
+                                    echo "🚀 Building and pushing Docker image for ${service}..."
 
-                    if (params.SKIP_BUILD_IMAGE && params.SKIP_PUSH_IMAGE) {
-                        echo "Skipping Docker build and push for ${service} because SKIP_BUILD_IMAGE and SKIP_PUSH_IMAGE are true."
-                    } else {
-                            dir(service) {
-                                sh 'docker info || { echo "Docker is not running. Exiting."; exit 1; }'
-                                echo "Building and pushing Docker image for ${service}..."
-
-                                sh """
-                                    echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
-
-                                    docker build -t ${imageName}:latest -t ${imageName}:${TAG} .
-
-                                    docker push ${imageName}:latest
-                                    docker push ${imageName}:${TAG}
-
-                                    docker logout
-                                """
+                                    sh """
+                                        docker build -t ${imageName}:latest -t ${imageName}:${TAG} .
+                                        docker push ${imageName}:latest
+                                        docker push ${imageName}:${TAG}
+                                    """
+                                }
+                            } else {
+                                echo "⚠️ Folder '${service}' does not exist. Skipping build and push."
                             }
                         }
                     }
-                    
 
+                    // Logout once after all operations
+                    sh "docker logout"
                 }
+
             }
         }
-
-
 
         
 
