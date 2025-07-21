@@ -13,7 +13,7 @@ function App() {
   return (
     <main className="max-w-2xl mx-auto p-4">
       <Home/>
-      <h2 className="text-xl font-semibold mb-2 text-gray-700">Latest Posts</h2>
+      <h2 className="text-xl font-semibold mb-2 text-gray-700">Latest Postssssss</h2>
       <ul className="space-y-4">
         {posts.map((post) => (
           <li key={post.id} className="border p-4 rounded hover:shadow transition">
